@@ -68,8 +68,8 @@ typedef struct {
 
 typedef struct {
     uint8_t reportID;
-    uint8_t buttons;
-    uint8_t ignore[5];
+    uint16_t buttons;
+    uint8_t ignore[1];
 } __packed ReportButtons_t;
 
 class HIDMouse3D {
