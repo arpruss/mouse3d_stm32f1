@@ -1,3 +1,4 @@
+// 24-button 3D mouse
 // Needs USBComposite library: 
 #include <USBComposite.h>
 
@@ -86,9 +87,11 @@ public:
               rxyzReporter(HID, (uint8_t*)&rxyz, sizeof(rxyz), 2),
               buttonsReporter(HID, (uint8_t*)&buttons, sizeof(buttons), 3) 
               {}
-    void send() {
-      xyzReporter.sendReport();
-      rxyzReporter.sendReport();
+    void sendPosition() {
+      buttonsReporter.sendReport();
+    }
+
+    void sendButtons() {
       buttonsReporter.sendReport();
     }
 };
@@ -114,7 +117,7 @@ void loop() {
   Mouse3D.rxyz.rz = 0;
   digitalWrite(LED,0);
   for (int i=0;i<30;i++) {
-    Mouse3D.send();
+    Mouse3D.sendPosition();
     delay(100);
   }
   Mouse3D.xyz.x = 400;
@@ -125,7 +128,7 @@ void loop() {
   Mouse3D.rxyz.rz = 0;
   digitalWrite(LED,1);
   for (int i=0;i<30;i++) {
-    Mouse3D.send();
+    Mouse3D.sendPosition();
     delay(100);
   }
 }
