@@ -1,14 +1,14 @@
 import serial.tools.list_ports
 import serial
 import select
-from sys import exit
+from sys import exit,stderr
 
 stm = None
 ball = None
 
 for p in serial.tools.list_ports.comports():
     print(p.description)
-    if p.description.startswith("Mouse3D"):
+    if p.description.startswith("USB Serial Device"):
         stm = p.device
         print(p.description)
     elif p.description.startswith("USB-SERIAL CH340"):
@@ -31,12 +31,16 @@ while True:
     w = port1.in_waiting
     while w > 0:
         c = port1.read()
- #       print("stm:"+str(c))
+        print("stm:"+str(c))
+#        stdout.write(c)
         port2.write(c)
         w -= 1
     w = port2.in_waiting
     while w > 0:
         c = port2.read()
- #       print("ball:"+str(c))
+#        print("ball:"+str(c))
+        stderr.buffer.write(c)
+        if c == b'\n' or c == b'\r': stderr.buffer.write(b'\r\n')
+        stderr.flush()
         port1.write(c)
         w -= 1        
