@@ -1,46 +1,59 @@
 import serial.tools.list_ports
 import serial
-import select
+import threading
 from sys import exit,stderr
+from time import sleep
 
 stm = None
 ball = None
 
-for p in serial.tools.list_ports.comports():
-    print(p.description)
-    if p.description.startswith("USB Serial Device"):
-        stm = p.device
-        print(p.description)
-    elif p.description.startswith("USB-SERIAL CH340"):
-        ball = p.device
-        print(p.description)
+def persistentOpen(description,baudrate=115200):
+    while True:
+        try:
+            for p in serial.tools.list_ports.comports():
+                if p.description.startswith(description):
+                    print("Opening "+str(p))
+                    conn = serial.Serial(port=p.device,baudrate=baudrate)
+                    conn.description = description
+                    return conn
+        except serial.SerialException as e:
+            print("Error "+str(e))
+            sleep(0.5)
 
-if stm is None or ball is None:
-    print("Cannot find device")
-    exit(1)
+port1 = persistentOpen("USB Serial Device", baudrate=115200)
+print(port1)
+port2 = persistentOpen("USB-SERIAL CH340", baudrate=9600)
+print("Ports opened")
 
-port1 = serial.Serial(port=stm,baudrate=115200)
-port2 = serial.Serial(port=ball,baudrate=9600)
+def persistentRead(port):
+    while True:
+        try:
+            data = port.read()
+            return (port,data)
+        except serial.SerialException as e:
+            print("Reconnecting after "+str(e))
+            d = port.description
+            b = port.baudrate
+            sleep(0.5)
+            port = persistentOpen(port.description)
+        except Exception as e:
+            print(str(e))
+            pass
 
-#while port2.read() != b'7': pass
-
-#port2.write(b"M\rS\rS\r")
-
+def read1():
+    global port1
+    while True:
+        (port1,data) = persistentRead(port1)
+        try:
+            port2.write(data)
+        except Exception as e:
+            print(str(e))
+            
+threading.Thread(target=read1).start()
+        
 while True:
-#    select.select([port1], [], [])
-    w = port1.in_waiting
-    while w > 0:
-        c = port1.read()
-        print("stm:"+str(c))
-#        stdout.write(c)
-        port2.write(c)
-        w -= 1
-    w = port2.in_waiting
-    while w > 0:
-        c = port2.read()
-#        print("ball:"+str(c))
-        stderr.buffer.write(c)
-        if c == b'\n' or c == b'\r': stderr.buffer.write(b'\r\n')
-        stderr.flush()
-        port1.write(c)
-        w -= 1        
+    (port2,data) = persistentRead(port2)
+    try:
+        port1.write(data)
+    except Exception as e:
+        print(str(e))
