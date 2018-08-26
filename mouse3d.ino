@@ -1,12 +1,13 @@
 // 24-button 3D mouse
 // Needs USBComposite library: 
+//#define SER CompositeSerial
 #include <USBComposite.h>
 
 #define LED PB12
 
 uint8_t descriptor_mouse3d[] = {
   0x05, 0x01,           /*  Usage Page (Generic Desktop) */ 
-  0x09, 0x08,           /*  0x08: Usage (Multi-Axis Controller) */ 
+  0x09, 0x04, // 0x08,           /*  0x08: Usage (Multi-Axis Controller) */ 
   0xA1, 0x01,           /*  Collection (Application) */ 
   0xa1, 0x00,            // Collection (Physical)
   0x85, 0x01,         /*  Report ID */
@@ -52,6 +53,7 @@ uint8_t descriptor_mouse3d[] = {
 };
 
 USBHID HID;
+USBCompositeSerial SER;
 
 typedef struct {
     uint8_t reportID;
@@ -103,33 +105,73 @@ void setup() {
   USBComposite.setProductString("Mouse3D");
   USBComposite.setVendorId(0x46D);
   USBComposite.setProductId(0xC625);
-  HID.begin(descriptor_mouse3d, sizeof(descriptor_mouse3d));
-  pinMode(LED, OUTPUT);
+  HID.setReportDescriptor(descriptor_mouse3d, sizeof(descriptor_mouse3d));
+  HID.registerComponent();
+  SER.registerComponent();
+  USBComposite.begin();
+  delay(1000);
+  SER.begin(9600);
+  return;
+  uint32 t = millis();
+  while((millis()-t) < 5000 && SER.available()) Serial.read();
+  SER.write("\x4D\rS\rS\rS\rS\r");  
   
+  pinMode(LED, OUTPUT);
+}
+
+#define BUFFER_SIZE 128
+uint32 bufferPos = 0;
+uint8 buffer[BUFFER_SIZE];
+bool escape = false;
+
+inline uint16 get16(const uint8* data, uint32 offset) {
+  return data[offset] | ((uint16)data[offset+1] << 8);
+}
+
+void processBuffer(const uint8* buf, uint32 len) {
+  if (buf[0] == 'K') {
+    if (len == 3) {
+      Mouse3D.buttons.buttons = get16(buf, 1);
+      Mouse3D.sendButtons();
+    }
+  }
+  else if (buf[0] == 'D') {
+    if (len == 15) {
+      Mouse3D.xyz.x = get16(buf, 3);
+      Mouse3D.xyz.y = get16(buf, 5);
+      Mouse3D.xyz.x = get16(buf, 7);
+      Mouse3D.rxyz.rx = get16(buf, 9);
+      Mouse3D.rxyz.ry = get16(buf, 11);
+      Mouse3D.rxyz.rx = get16(buf, 13);
+      Mouse3D.sendPosition();
+    }
+  }
 }
 
 void loop() {
-  Mouse3D.xyz.x = -400;
-  Mouse3D.xyz.y = 0;
-  Mouse3D.xyz.z = 0;
-  Mouse3D.rxyz.rx = -400;
-  Mouse3D.rxyz.ry = 0;
-  Mouse3D.rxyz.rz = 0;
-  digitalWrite(LED,0);
-  for (int i=0;i<30;i++) {
-    Mouse3D.sendPosition();
-    delay(100);
-  }
-  Mouse3D.xyz.x = 400;
-  Mouse3D.xyz.y = 0;
-  Mouse3D.xyz.z = 0;
-  Mouse3D.rxyz.rx = 400;
-  Mouse3D.rxyz.ry = 0;
-  Mouse3D.rxyz.rz = 0;
-  digitalWrite(LED,1);
-  for (int i=0;i<30;i++) {
-    Mouse3D.sendPosition();
-    delay(100);
+  return;
+  while (SER.available()) {
+    digitalWrite(LED,0);
+    uint8 c = SER.read();
+    digitalWrite(LED,1);
+    if (c == '\r') {
+      if (bufferPos < BUFFER_SIZE) 
+        processBuffer(buffer,bufferPos);
+      bufferPos = 0;
+      continue;
+    }
+    else if (escape) {
+      if (c == 'Q' || c == 'S' || c == 'M')
+        c &= 0b10111111;
+      escape = false;
+    }
+    else if (c == '^') {
+      escape = true;
+      continue;
+    }
+
+    if (bufferPos < BUFFER_SIZE)
+      buffer[bufferPos++] = c;    
   }
 }
 
