@@ -109,10 +109,10 @@ HIDMouse3D Mouse3D(HID);
 void setup() {
   pinMode(LED, OUTPUT);
 
-  USBComposite.setManufacturerString("stm32duino");
-  USBComposite.setProductString("Mouse3D");
+  USBComposite.setManufacturerString("3dconnexion"); // "stm32duino");
+  USBComposite.setProductString("SpaceNavigator"); // "Mouse3D");
   USBComposite.setVendorId(0x46D);
-  USBComposite.setProductId(0xC625);
+  USBComposite.setProductId(0xC626); // SpacePilot0xC625);
   HID.setReportDescriptor(descriptor_mouse3d, sizeof(descriptor_mouse3d));
   HID.registerComponent();
   SER.registerComponent();
