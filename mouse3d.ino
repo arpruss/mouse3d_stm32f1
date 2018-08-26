@@ -115,10 +115,10 @@ void setup() {
   USBComposite.setVendorId(0x1EAF);
 #else
   USBComposite.setManufacturerString("3dconnexion"); // "stm32duino");
-  USBComposite.setProductString("SpaceNavigator"); // "Mouse3D");
+  USBComposite.setProductString("SpaceMouse Pro"); // "Mouse3D");
   USBComposite.setVendorId(0x46D);
 #endif
-  USBComposite.setProductId(0xC626); // SpacePilot0xC625);
+  USBComposite.setProductId(0xc62b); 
   HID.setReportDescriptor(descriptor_mouse3d, sizeof(descriptor_mouse3d));
   HID.registerComponent();
   SER.registerComponent();
