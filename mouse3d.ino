@@ -9,9 +9,9 @@
 uint8_t descriptor_mouse3d[] = {
   0x05, 0x01,           /*  Usage Page (Generic Desktop) */ 
 #ifdef JOYSTICK_MODE
-  0x09, 0x08,           /*  0x08: Usage (Multi-Axis Controller) */ 
+  0x09, 0x04,           /*  0x08: Usage (Joystick) */ 
 #else  
-  0x09, 0x04,           /*  0x08: Usage (Multi-Axis Controller) */ 
+  0x09, 0x08,           /*  0x08: Usage (Multi-Axis Controller) */ 
 #endif  
   0xA1, 0x01,           /*  Collection (Application) */ 
   0xa1, 0x00,            // Collection (Physical)

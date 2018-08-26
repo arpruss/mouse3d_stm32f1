@@ -32,13 +32,16 @@ def persistentRead(port):
             return (port,data)
         except serial.SerialException as e:
             print("Reconnecting after "+str(e))
+            try:
+                port.close()
+            except:
+                pass
             d = port.description
             b = port.baudrate
             sleep(0.5)
             port = persistentOpen(port.description)
         except Exception as e:
             print(str(e))
-            pass
 
 def read1():
     global port1
