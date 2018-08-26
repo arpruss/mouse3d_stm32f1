@@ -109,9 +109,15 @@ HIDMouse3D Mouse3D(HID);
 void setup() {
   pinMode(LED, OUTPUT);
 
+#ifdef JOYSTICK_MODE
+  USBComposite.setManufacturerString("stm32duino");
+  USBComposite.setProductString("zMouse3D");
+  USBComposite.setVendorId(0x1EAF);
+#else
   USBComposite.setManufacturerString("3dconnexion"); // "stm32duino");
   USBComposite.setProductString("SpaceNavigator"); // "Mouse3D");
   USBComposite.setVendorId(0x46D);
+#endif
   USBComposite.setProductId(0xC626); // SpacePilot0xC625);
   HID.setReportDescriptor(descriptor_mouse3d, sizeof(descriptor_mouse3d));
   HID.registerComponent();
@@ -164,10 +170,10 @@ void processBuffer(const uint8* buf, uint32 len) {
 #else      
       Mouse3D.xyz.x = get16(buf, 3);
       Mouse3D.xyz.y = get16(buf, 5);
-      Mouse3D.xyz.z = get16(buf, 7);
+      Mouse3D.xyz.z = -get16(buf, 7);
       Mouse3D.rxyz.rx = get16(buf, 9);
       Mouse3D.rxyz.ry = get16(buf, 11);
-      Mouse3D.rxyz.rz = get16(buf, 13);
+      Mouse3D.rxyz.rz = -get16(buf, 13);
 #endif      
       Mouse3D.sendPosition();
       digitalWrite(LED,0);
