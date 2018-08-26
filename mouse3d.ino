@@ -3,7 +3,7 @@
 //#define SER CompositeSerial
 #include <USBComposite.h>
 
-#define JOYSTICK_MODE
+#undef JOYSTICK_MODE
 #define LED PB12
 
 uint8_t descriptor_mouse3d[] = {
@@ -107,6 +107,8 @@ public:
 HIDMouse3D Mouse3D(HID);
 
 void setup() {
+  pinMode(LED, OUTPUT);
+
   USBComposite.setManufacturerString("stm32duino");
   USBComposite.setProductString("Mouse3D");
   USBComposite.setVendorId(0x46D);
@@ -118,16 +120,20 @@ void setup() {
   delay(1000);
   SER.begin(9600);
 
+  digitalWrite(LED,0);
   uint32 t = millis();
   while((millis()-t) < 5000) {
     if (SER.available()) Serial.read();
   }
-  SER.write("\x4D\rS\rS\rS\rS\r");  
+  SER.write("\x4D\r");  
+  digitalWrite(LED,1);
+  Mouse3D.sendButtons();
+  Mouse3D.sendPosition();
   
-  pinMode(LED, OUTPUT);
 }
 
 #define BUFFER_SIZE 128
+uint32 lastD = 0;
 uint32 bufferPos = 0;
 uint8 buffer[BUFFER_SIZE];
 bool escape = false;
@@ -139,23 +145,25 @@ inline uint16 get16(const uint8* data, uint32 offset) {
 void processBuffer(const uint8* buf, uint32 len) {
   if (buf[0] == '.') {
     if (len == 3) {
-      Mouse3D.buttons.buttons = (buf[2]) | ((uint16)(buf[1])<<8);
+      uint16 b = buf[2] | ((uint16)(buf[1])<<8);
+      b = ((b&0b111111) | ((b&~0b1111111)>>1)) & 0b111111111111;
+      Mouse3D.buttons.buttons = b;
       Mouse3D.sendButtons();
-      digitalWrite(LED,1);
     }
   }
   else if (buf[0] == 'D') {
     if (len == 15) {
+      lastD = millis();      
 #ifdef JOYSTICK_MODE
       Mouse3D.xyz.x = get16(buf, 3);
       Mouse3D.xyz.z = get16(buf, 5);
-      Mouse3D.xyz.y = get16(buf, 7);
+      Mouse3D.xyz.y = -get16(buf, 7);
       Mouse3D.rxyz.rx = get16(buf, 9);
       Mouse3D.rxyz.rz = get16(buf, 11);
-      Mouse3D.rxyz.ry = get16(buf, 13);
+      Mouse3D.rxyz.ry = -get16(buf, 13);
 #else      
       Mouse3D.xyz.x = get16(buf, 3);
-      Mouse3D.xyz.y = -get16(buf, 5);
+      Mouse3D.xyz.y = get16(buf, 5);
       Mouse3D.xyz.z = get16(buf, 7);
       Mouse3D.rxyz.rx = get16(buf, 9);
       Mouse3D.rxyz.ry = get16(buf, 11);
@@ -168,6 +176,10 @@ void processBuffer(const uint8* buf, uint32 len) {
 }
 
 void loop() {
+  if (millis()-lastD > 5000) {
+    SER.write("\x4D\r");  
+    lastD = millis();
+  }
   while (SER.available()) {
     digitalWrite(LED,0);  
     uint8 c = SER.read();
