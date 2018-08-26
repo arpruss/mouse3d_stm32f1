@@ -3,7 +3,7 @@
 //#define SER CompositeSerial
 #include <USBComposite.h>
 
-#undef JOYSTICK_MODE
+//#define JOYSTICK_MODE
 #define LED PB12
 
 uint8_t descriptor_mouse3d[] = {
@@ -139,6 +139,7 @@ void setup() {
 }
 
 #define BUFFER_SIZE 128
+bool rightHanded = true;
 uint32 lastD = 0;
 uint32 bufferPos = 0;
 uint8 buffer[BUFFER_SIZE];
@@ -151,7 +152,8 @@ inline uint16 get16(const uint8* data, uint32 offset) {
 void processBuffer(const uint8* buf, uint32 len) {
   if (buf[0] == '.') {
     if (len == 3) {
-      uint16 b = buf[2] | ((uint16)(buf[1])<<8);
+      uint16 b = buf[2] | ((uint16)(buf[1])<<8);      
+      rightHanded = (0 != (b & 0b10000000000000));
       b = ((b&0b111111) | ((b&~0b1111111)>>1)) & 0b111111111111;
       Mouse3D.buttons.buttons = b;
       Mouse3D.sendButtons();
@@ -160,23 +162,24 @@ void processBuffer(const uint8* buf, uint32 len) {
   else if (buf[0] == 'D') {
     if (len == 15) {
       lastD = millis();      
+      digitalWrite(LED,!rightHanded);
+      int16 signAdjust = rightHanded ? 1 : -1;
 #ifdef JOYSTICK_MODE
       Mouse3D.xyz.x = get16(buf, 3);
-      Mouse3D.xyz.z = get16(buf, 5);
+      Mouse3D.xyz.z = signAdjust * get16(buf, 5);
       Mouse3D.xyz.y = -get16(buf, 7);
-      Mouse3D.rxyz.rx = get16(buf, 9);
+      Mouse3D.rxyz.rx = signAdjust * get16(buf, 9);
       Mouse3D.rxyz.rz = get16(buf, 11);
-      Mouse3D.rxyz.ry = -get16(buf, 13);
+      Mouse3D.rxyz.ry = -signAdjust * get16(buf, 13);
 #else      
       Mouse3D.xyz.x = get16(buf, 3);
-      Mouse3D.xyz.y = get16(buf, 5);
+      Mouse3D.xyz.y = -signAdjust * get16(buf, 5);
       Mouse3D.xyz.z = -get16(buf, 7);
-      Mouse3D.rxyz.rx = get16(buf, 9);
+      Mouse3D.rxyz.rx = signAdjust * get16(buf, 9);
       Mouse3D.rxyz.ry = get16(buf, 11);
-      Mouse3D.rxyz.rz = -get16(buf, 13);
+      Mouse3D.rxyz.rz = -signAdjust * get16(buf, 13);
 #endif      
       Mouse3D.sendPosition();
-      digitalWrite(LED,0);
     }
   }
 }
@@ -187,9 +190,9 @@ void loop() {
     lastD = millis();
   }
   while (SER.available()) {
-    digitalWrite(LED,0);  
+//    digitalWrite(LED,0);  
     uint8 c = SER.read();
-    digitalWrite(LED,1);
+//    digitalWrite(LED,1);
     if (c == '\r') {
       if (bufferPos < BUFFER_SIZE) 
         processBuffer(buffer,bufferPos);
