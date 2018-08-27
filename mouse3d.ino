@@ -3,7 +3,7 @@
 //#define SER CompositeSerial
 #include <USBComposite.h>
 
-#define JOYSTICK_MODE
+#undef JOYSTICK_MODE
 #define LED PB12
 
 uint8_t descriptor_mouse3d[] = {
