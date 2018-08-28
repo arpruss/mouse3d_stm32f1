@@ -3,7 +3,8 @@
 //#define SER CompositeSerial
 #include <USBComposite.h>
 
-const char init[] = "AE\rA271006\rM\r"; // auto-rezero Enable, auto-rezero after 10,000 ms assuming 6 movement units
+const char init[] = "P20\rYS\rAE\rA271006\rM\r"; // update period 32ms, sensitivity Standard (vs. Cubic), auto-rezero Enable (D to disable), auto-rezero after 10,000 ms assuming 6 movement units
+const char rezero[] = "Z\r";
 
 #undef JOYSTICK_MODE
 #define LED PB12
