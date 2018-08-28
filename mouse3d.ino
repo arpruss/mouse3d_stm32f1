@@ -3,6 +3,8 @@
 //#define SER CompositeSerial
 #include <USBComposite.h>
 
+const char init[] = "AE\rA271006\rM\r"; // auto-rezero Enable, auto-rezero after 10,000 ms assuming 6 movement units
+
 #undef JOYSTICK_MODE
 #define LED PB12
 
@@ -131,7 +133,7 @@ void setup() {
   while((millis()-t) < 2000) {
     if (SER.available()) Serial.read();
   }
-  SER.write("M\r");  
+  SER.write(init);  
   digitalWrite(LED,1);
   Mouse3D.sendButtons();
   Mouse3D.sendPosition();
@@ -198,7 +200,7 @@ void processBuffer(const uint8* buf, uint32 len) {
 
 void loop() {
   if (millis()-lastD > 5000) {
-    SER.write("M\r");  
+    SER.write(init);  
     lastD = millis();
   }
 /*  if (!haveHandedness && (lastHandednessCheck == 0 || millis() - lastHandednessCheck > 2000)) {
