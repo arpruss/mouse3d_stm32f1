@@ -15,6 +15,7 @@ def persistentOpen(description,baudrate=115200):
                     print("Opening "+str(p))
                     conn = serial.Serial(port=p.device,baudrate=baudrate)
                     conn.description = description
+                    conn.device = p.device ## check
                     return conn
         except serial.SerialException as e:
             print("Error "+str(e))

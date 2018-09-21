@@ -1,13 +1,35 @@
 // 24-button 3D mouse
 // Needs USBComposite library: 
-//#define SER CompositeSerial
 #include <USBComposite.h>
 
-const char init[] = "P20\rYS\rAE\rA271006\rM\r"; // update period 32ms, sensitivity Standard (vs. Cubic), auto-rezero Enable (D to disable), auto-rezero after 10,000 ms assuming 6 movement units
-const char rezero[] = "Z\r";
+//#define MOUSE_ON_SERIAL1
+
+#ifdef MOUSE_ON_SERIAL1
+#define SER Serial1
+#else
+#define SER USBCompositeSerial
+#endif
 
 #undef JOYSTICK_MODE
 #define LED PB12
+
+static const int16 trimValue = 500;
+static const uint8 minLow = (-trimValue)&0xFF;
+static const uint8 minHigh = ((-trimValue)>>8)&0xFF;
+static const uint8 maxLow = (trimValue)&0xFF;
+static const uint8 maxHigh = ((trimValue)>>8)&0xFF;
+
+const char preface[] = "P20\rYS\rAE\rA271006\rM\r"; // update period 32ms, sensitivity Standard (vs. Cubic), auto-rezero Enable (D to disable), auto-rezero after 10,000 ms assuming 6 movement units
+const char rezero[] = "Z\r";
+
+int16 trim(int16 v) {
+  if (v<-trimValue)
+    return -trimValue;
+  else if (v>trimValue)
+    return trimValue;
+  else
+    return v;
+}
 
 uint8_t descriptor_mouse3d[] = {
   0x05, 0x01,           /*  Usage Page (Generic Desktop) */ 
@@ -19,8 +41,8 @@ uint8_t descriptor_mouse3d[] = {
   0xA1, 0x01,           /*  Collection (Application) */ 
   0xa1, 0x00,            // Collection (Physical)
   0x85, 0x01,         /*  Report ID */
-//  0x16,0x0c,0xfe,        //logical minimum (-500)
-//  0x26,0xf4,0x01,        //logical maximum (500)
+  0x16, minLow,minHigh,        //logical minimum (-500)
+  0x26, maxLow,maxHigh,        //logical maximum (500)
   0x36,0x00,0x80,              // Physical Minimum (-32768)
   0x46,0xff,0x7f,              //Physical Maximum (32767)
   0x09, 0x30,           /*    Usage (X) */ 
@@ -33,10 +55,10 @@ uint8_t descriptor_mouse3d[] = {
 
   0xa1, 0x00,            // Collection (Physical)
   0x85, 0x02,         /*  Report ID */
-//  0x16,0x0c,0xfe,        //logical minimum (-500)
-//  0x26,0xf4,0x01,        //logical maximum (500)
-  0x36,0x00,0x80,              // Physical Minimum (-32768)
-  0x46,0xff,0x7f,              //Physical Maximum (32767)
+  0x16, minLow,minHigh,        //logical minimum (-500)
+  0x26, maxLow,maxHigh,        //logical maximum (500)
+  0x36, 0x00,0x80,              // Physical Minimum (-32768)
+  0x46, 0xff,0x7f,              //Physical Maximum (32767)
   0x09, 0x33,           /*    Usage (RX) */ 
   0x09, 0x34,           /*    Usage (RY) */ 
   0x09, 0x35,           /*    Usage (RZ) */ 
@@ -61,7 +83,9 @@ uint8_t descriptor_mouse3d[] = {
 };
 
 USBHID HID;
+#ifndef MOUSE_ON_SERIAL1
 USBCompositeSerial SER;
+#endif
 
 typedef struct {
     uint8_t reportID;
@@ -124,7 +148,9 @@ void setup() {
   USBComposite.setProductId(0xc62b); 
   HID.setReportDescriptor(descriptor_mouse3d, sizeof(descriptor_mouse3d));
   HID.registerComponent();
+#ifndef MOUSE_ON_SERIAL1  
   SER.registerComponent();
+#endif  
   USBComposite.begin();
   delay(1000);
   SER.begin(9600);
@@ -134,7 +160,7 @@ void setup() {
   while((millis()-t) < 2000) {
     if (SER.available()) Serial.read();
   }
-  SER.write(init);  
+  SER.write(preface);  
   digitalWrite(LED,1);
   Mouse3D.sendButtons();
   Mouse3D.sendPosition();
@@ -142,10 +168,7 @@ void setup() {
 }
 
 #define BUFFER_SIZE 128
-//bool rightHanded = true;
-//bool haveHandedness = false;
 uint32 lastD = 0;
-//uint32 lastHandednessCheck = 0;
 uint32 bufferPos = 0;
 uint8 buffer[BUFFER_SIZE];
 bool escape = false;
@@ -166,33 +189,23 @@ void processBuffer(const uint8* buf, uint32 len) {
       Mouse3D.sendButtons();
     }
   }
-/*  else if (len > 8 && buf[0] == '"' && buf[1] == '2') {
-    if (buf[8] == 'R') {
-      rightHanded = true;
-      haveHandedness = true;
-    }
-    else if (buf[8] == 'L') {
-      rightHanded = false;
-      haveHandedness = true;
-    }
-  } */
   else if (buf[0] == 'D') {
     if (len == 15) {
       lastD = millis();      
 #ifdef JOYSTICK_MODE
-      Mouse3D.xyz.x = get16(buf, 3);
-      Mouse3D.xyz.z = get16(buf, 5);
-      Mouse3D.xyz.y = -get16(buf, 7);
-      Mouse3D.rxyz.rx = get16(buf, 9);
-      Mouse3D.rxyz.rz = get16(buf, 11);
-      Mouse3D.rxyz.ry = -get16(buf, 13);
+      Mouse3D.xyz.x = trim(get16(buf, 3));
+      Mouse3D.xyz.z = trim(get16(buf, 5));
+      Mouse3D.xyz.y = trim(-get16(buf, 7));
+      Mouse3D.rxyz.rx = trim(get16(buf, 9));
+      Mouse3D.rxyz.rz = trim(get16(buf, 11));
+      Mouse3D.rxyz.ry = trim(-get16(buf, 13));
 #else      
-      Mouse3D.xyz.x = get16(buf, 3); // rl adjusts
-      Mouse3D.xyz.y = get16(buf, 5);
-      Mouse3D.xyz.z = -get16(buf, 7); // rl adjusts
-      Mouse3D.rxyz.rx = get16(buf, 9); // rl adjusts
-      Mouse3D.rxyz.ry = get16(buf, 11);
-      Mouse3D.rxyz.rz = -get16(buf, 13); //rl adjusts
+      Mouse3D.xyz.x = trim(get16(buf, 3)); // rl adjusts
+      Mouse3D.xyz.y = trim(get16(buf, 5));
+      Mouse3D.xyz.z = trim(-get16(buf, 7)); // rl adjusts
+      Mouse3D.rxyz.rx = trim(get16(buf, 9)); // rl adjusts
+      Mouse3D.rxyz.ry = trim(get16(buf, 11));
+      Mouse3D.rxyz.rz = trim(-get16(buf, 13)); //rl adjusts
 #endif      
       Mouse3D.sendPosition();
     }
@@ -201,13 +214,9 @@ void processBuffer(const uint8* buf, uint32 len) {
 
 void loop() {
   if (millis()-lastD > 5000) {
-    SER.write(init);  
+    SER.write(preface);  
     lastD = millis();
   }
-/*  if (!haveHandedness && (lastHandednessCheck == 0 || millis() - lastHandednessCheck > 2000)) {
-    lastHandednessCheck = millis();
-    SER.write("\"\r");
-  } */
   while (SER.available()) {
     digitalWrite(LED,0);  
     uint8 c = SER.read();
