@@ -2,8 +2,8 @@
 // Needs USBComposite library: 
 #include <USBComposite.h>
 
-#define MOUSE_ON_SERIAL1
-#define DEBUG
+#define MOUSE_ON_SERIAL1 // disable this if using the PC to bridge from rs232 to UART
+//#define DEBUG
 #define POWER_CONTROL PB11
 
 #ifdef MOUSE_ON_SERIAL1
@@ -15,7 +15,6 @@
 #endif
 #endif
 
-//#define JOYSTICK_MODE
 #define LED PB12
 
 bool joyMode = false;
@@ -313,13 +312,13 @@ void processBuffer(const uint8* buf, uint32 len) {
 #ifdef DEBUG
       CompositeSerial.println(String(b));
 #endif      
-#ifdef SWITCHABLE_BROKEN
+#ifndef SWITCHABLE_BROKEN
       if ((b & (0b111 << 6)) == (0b111 << 6)) {
         if (joyMode && (b & (1 << 3))) {
           joyMode = false;
           HID.end();
           USBComposite.end();
-          SER.write("S\r");
+          SER.write("BaA\r");
           delay(1000);
           startMouse3D();
           delay(1000);
@@ -329,7 +328,7 @@ void processBuffer(const uint8* buf, uint32 len) {
           joyMode = true;
           HID.end();
           USBComposite.end();
-          SER.write("S\r");
+          SER.write("BjA\r");
           delay(1000);
           startJoy3D();
           delay(1000);
@@ -343,22 +342,23 @@ void processBuffer(const uint8* buf, uint32 len) {
   }
   else if (buf[0] == 'D') {
     if (len == 15) {
-      lastD = millis();      
-#ifdef JOYSTICK_MODE
-      Mouse3D.xyz.x = trim(get16(buf, 3));
-      Mouse3D.xyz.z = trim(get16(buf, 5));
-      Mouse3D.xyz.y = trim(-get16(buf, 7));
-      Mouse3D.rxyz.rx = trim(get16(buf, 9));
-      Mouse3D.rxyz.rz = trim(get16(buf, 11));
-      Mouse3D.rxyz.ry = trim(-get16(buf, 13));
-#else      
-      Mouse3D.xyz.x = trim(get16(buf, 3)); // rl adjusts
-      Mouse3D.xyz.y = trim(get16(buf, 5));
-      Mouse3D.xyz.z = trim(-get16(buf, 7)); // rl adjusts
-      Mouse3D.rxyz.rx = trim(get16(buf, 9)); // rl adjusts
-      Mouse3D.rxyz.ry = trim(get16(buf, 11));
-      Mouse3D.rxyz.rz = trim(-get16(buf, 13)); //rl adjusts
-#endif      
+      lastD = millis();
+      if (joyMode) {      
+        Mouse3D.xyz.x = trim(get16(buf, 3));
+        Mouse3D.xyz.z = trim(get16(buf, 5));
+        Mouse3D.xyz.y = trim(-get16(buf, 7));
+        Mouse3D.rxyz.ry = trim(get16(buf, 9));
+        Mouse3D.rxyz.rz = trim(-get16(buf, 11));
+        Mouse3D.rxyz.rx = trim(get16(buf, 13));
+      }
+      else {
+        Mouse3D.xyz.x = trim(get16(buf, 3)); // rl adjusts
+        Mouse3D.xyz.y = trim(get16(buf, 5));
+        Mouse3D.xyz.z = trim(-get16(buf, 7)); // rl adjusts
+        Mouse3D.rxyz.rx = trim(get16(buf, 9)); // rl adjusts
+        Mouse3D.rxyz.ry = trim(get16(buf, 11));
+        Mouse3D.rxyz.rz = trim(-get16(buf, 13)); //rl adjusts
+      }
       Mouse3D.sendPosition();
     }
   }
