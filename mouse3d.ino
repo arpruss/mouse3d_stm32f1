@@ -204,6 +204,11 @@ public:
       buttonsReporter.sendReport();
     }
 
+    void send() {
+      sendPosition();
+      sendButtons();
+    }
+
     void begin() {
       HID.addOutputBuffer(&ledData);      
     }
@@ -287,8 +292,7 @@ void setup() {
     if (SER.available()) Serial.read();
   } 
   SER.write(preface);  
-  Mouse3D.sendButtons();
-  Mouse3D.sendPosition();  
+  Mouse3D.send();
 }
 
 #define BUFFER_SIZE 128
@@ -337,7 +341,7 @@ void processBuffer(const uint8* buf, uint32 len) {
       }
 #endif      
       Mouse3D.buttons.buttons = b;
-      Mouse3D.sendButtons();
+      Mouse3D.send();
     }
   }
   else if (buf[0] == 'D') {
@@ -359,7 +363,7 @@ void processBuffer(const uint8* buf, uint32 len) {
         Mouse3D.rxyz.ry = trim(get16(buf, 11));
         Mouse3D.rxyz.rz = trim(-get16(buf, 13)); //rl adjusts
       }
-      Mouse3D.sendPosition();
+      Mouse3D.send();
     }
   }
 }
