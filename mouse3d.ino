@@ -95,7 +95,7 @@ uint8_t descriptor_mouse3d[] = {
 
 uint8_t descriptor_joy3d[] = {
   0x05, 0x01,           /*  Usage Page (Generic Desktop) */ 
-  0x09, 0x04,           /*  0x08: Usage (Joystick) */ 
+  0x09, 0x04,           /*  0x04: Usage (Joystick) */ 
   0xA1, 0x01,           /*  Collection (Application) */ 
   0xa1, 0x00,            // Collection (Physical)
   0x85, 0x01,         /*  Report ID */
