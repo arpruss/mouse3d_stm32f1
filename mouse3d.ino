@@ -106,34 +106,19 @@ uint8_t descriptor_joy3d[] = {
   0x09, 0x30,           /*    Usage (X) */ 
   0x09, 0x31,           /*    Usage (Y) */ 
   0x09, 0x32,           /*    Usage (Z) */ 
-  0x75, 0x10,           /*    Report Size (16) */ 
-  0x95, 0x03,           /*    Report Count (3) */ 
-  0x81, 0x02,           /*    Input (variable,absolute) */ 
-  0xC0,                           /*  End Collection */ 
-
-  0xa1, 0x00,            // Collection (Physical)
-  0x85, 0x02,         /*  Report ID */
-  0x16, minLow,minHigh,        //logical minimum (-500)
-  0x26, maxLow,maxHigh,        //logical maximum (500)
-  0x36, 0x00,0x80,              // Physical Minimum (-32768)
-  0x46, 0xff,0x7f,              //Physical Maximum (32767)
   0x09, 0x33,           /*    Usage (RX) */ 
   0x09, 0x34,           /*    Usage (RY) */ 
   0x09, 0x35,           /*    Usage (RZ) */ 
   0x75, 0x10,           /*    Report Size (16) */ 
-  0x95, 0x03,           /*    Report Count (3) */ 
+  0x95, 0x06,           /*    Report Count (6) */ 
   0x81, 0x02,           /*    Input (variable,absolute) */ 
-  0xC0,                           /*  End Collection */ 
-    
-  0xa1, 0x00,            // Collection (Physical)
-  0x85, 0x03,         /*  Report ID */
   0x15, 0x00,           /*   Logical Minimum (0) */ 
   0x25, 0x01,           /*    Logical Maximum (1) */
   0x75, 0x01,           /*    Report Size (1) */ 
-  0x95, 24,           /*    Report Count (24) */
+  0x95, 16,           /*    Report Count (16) */
   0x05, 0x09,           /*    Usage Page (Button) */ 
   0x19, 1,           /*    Usage Minimum (Button #1) */ 
-  0x29, 24,           /*    Usage Maximum (Button #24) */ 
+  0x29, 16,           /*    Usage Maximum (Button #16) */ 
   0x81, 0x02,           /*    Input (variable,absolute) */ 
   0xC0,
 
@@ -178,6 +163,17 @@ typedef struct {
     uint8_t ignore[1];
 } __packed ReportButtons_t;
 
+typedef struct {
+    uint8_t reportID;
+    int16 x;
+    int16 y;
+    int16 z;
+    int16 rx;
+    int16 ry;
+    int16 rz;
+    uint16_t buttons;
+} __packed ReportJoy_t;
+
 class HIDMouse3D {
 protected:
 public:
@@ -217,7 +213,29 @@ public:
     }
 };
 
+class HIDJoy3D {
+protected:
+public:
+    ReportJoy_t report;
+    HIDReporter reporter;
+    HIDBuffer_t ledData;
+    uint8_t leds[HID_BUFFER_ALLOCATE_SIZE(1,1)];
+    HIDJoy3D(USBHID& HID) 
+            : reporter(HID, (uint8_t*)&report, sizeof(report), 1),
+              ledData(leds, HID_BUFFER_SIZE(1,4), 4, HID_BUFFER_MODE_NO_WAIT)
+              {}
+
+    void send() {
+      reporter.sendReport();
+    }
+
+    void begin() {
+      HID.addOutputBuffer(&ledData);      
+    }
+};
+
 HIDMouse3D Mouse3D(HID);
+HIDJoy3D Joy3D(HID);
 
 void startMouse3D() {  
   USBComposite.clear();
@@ -247,6 +265,7 @@ void startJoy3D() {
   HID.clearBuffers();
   HID.setReportDescriptor(descriptor_joy3d, sizeof(descriptor_joy3d));
   HID.registerComponent();
+  Joy3D.begin();
 #ifndef MOUSE_ON_SERIAL1
   SER.registerComponent();
 #endif
@@ -343,20 +362,27 @@ void processBuffer(const uint8* buf, uint32 len) {
         }
       }
 #endif      
-      Mouse3D.buttons.buttons = b;
-      Mouse3D.send();
+      if (joyMode) {
+        Joy3D.report.buttons = b;
+        Joy3D.send();
+      } 
+      else {
+        Mouse3D.buttons.buttons = b;
+        Mouse3D.send();
+      }
     }
   }
   else if (buf[0] == 'D') {
     if (len == 15) {
       lastD = millis();
       if (joyMode) {      
-        Mouse3D.xyz.x = trim(get16(buf, 3));
-        Mouse3D.xyz.z = trim(get16(buf, 5));
-        Mouse3D.xyz.y = trim(-get16(buf, 7));
-        Mouse3D.rxyz.ry = trim(get16(buf, 9));
-        Mouse3D.rxyz.rz = trim(-get16(buf, 11));
-        Mouse3D.rxyz.rx = trim(get16(buf, 13));
+        Joy3D.report.x = trim(get16(buf, 3));
+        Joy3D.report.z = trim(get16(buf, 5));
+        Joy3D.report.y = trim(-get16(buf, 7));
+        Joy3D.report.ry = trim(get16(buf, 9));
+        Joy3D.report.rz = trim(-get16(buf, 11));
+        Joy3D.report.rx = trim(get16(buf, 13));
+        Joy3D.send();
       }
       else {
         Mouse3D.xyz.x = trim(get16(buf, 3)); // rl adjusts
@@ -365,8 +391,8 @@ void processBuffer(const uint8* buf, uint32 len) {
         Mouse3D.rxyz.rx = trim(get16(buf, 9)); // rl adjusts
         Mouse3D.rxyz.ry = trim(get16(buf, 11));
         Mouse3D.rxyz.rz = trim(-get16(buf, 13)); //rl adjusts
+        Mouse3D.send();
       }
-      Mouse3D.send();
     }
   }
 }
