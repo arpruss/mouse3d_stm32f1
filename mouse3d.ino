@@ -15,7 +15,7 @@
 #endif
 #endif
 
-#define LED PB12
+#define LED PB12 // change to PC13 if you have a blue pill
 
 bool joyMode = false;
 static const int16 trimValue = 500;
@@ -195,8 +195,11 @@ public:
               buttonsReporter(HID, (uint8_t*)&buttons, sizeof(buttons), 3),
               ledData(leds, HID_BUFFER_SIZE(1,4), 4, HID_BUFFER_MODE_NO_WAIT)
               {}
+
     void sendPosition() {
+      sendButtons();
       xyzReporter.sendReport();
+      sendButtons();
       rxyzReporter.sendReport();
     }
 
