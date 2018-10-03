@@ -49,24 +49,26 @@ uint8_t descriptor_mouse3d[] = {
   0x09, 0x30,           /*    Usage (X) */ 
   0x09, 0x31,           /*    Usage (Y) */ 
   0x09, 0x32,           /*    Usage (Z) */ 
+  0x09, 0x33,           /*    Usage (RX) */ 
+  0x09, 0x34,           /*    Usage (RY) */ 
+  0x09, 0x35,           /*    Usage (RZ) */ 
   0x75, 0x10,           /*    Report Size (16) */ 
-  0x95, 0x03,           /*    Report Count (3) */ 
+  0x95, 0x06,           /*    Report Count (6) */ 
   0x81, 0x02,           /*    Input (variable,absolute) */ 
   0xC0,                           /*  End Collection */ 
 
+#if 0
   0xa1, 0x00,            // Collection (Physical)
   0x85, 0x02,         /*  Report ID */
   0x16, minLow,minHigh,        //logical minimum (-500)
   0x26, maxLow,maxHigh,        //logical maximum (500)
   0x36, 0x00,0x80,              // Physical Minimum (-32768)
   0x46, 0xff,0x7f,              //Physical Maximum (32767)
-  0x09, 0x33,           /*    Usage (RX) */ 
-  0x09, 0x34,           /*    Usage (RY) */ 
-  0x09, 0x35,           /*    Usage (RZ) */ 
   0x75, 0x10,           /*    Report Size (16) */ 
   0x95, 0x03,           /*    Report Count (3) */ 
   0x81, 0x02,           /*    Input (variable,absolute) */ 
   0xC0,                           /*  End Collection */ 
+#endif  
     
   0xa1, 0x00,            // Collection (Physical)
   0x85, 0x03,         /*  Report ID */
@@ -148,14 +150,10 @@ typedef struct {
     int16 x;
     int16 y;
     int16 z;
-} __packed ReportXYZ_t;
-
-typedef struct {
-    uint8_t reportID;
     int16 rx;
     int16 ry;
     int16 rz;
-} __packed ReportRXYZ_t;
+} __packed ReportMovement_t;
 
 typedef struct {
     uint8_t reportID;
@@ -177,26 +175,20 @@ typedef struct {
 class HIDMouse3D {
 protected:
 public:
-    ReportXYZ_t xyz;
-    ReportRXYZ_t rxyz;
+    ReportMovement_t movement;
     ReportButtons_t buttons;
-    HIDReporter xyzReporter;
-    HIDReporter rxyzReporter;
+    HIDReporter movementReporter;
     HIDReporter buttonsReporter;
     HIDBuffer_t ledData;
     uint8_t leds[HID_BUFFER_ALLOCATE_SIZE(1,1)];
     HIDMouse3D(USBHID& HID) 
-            : xyzReporter(HID, (uint8_t*)&xyz, sizeof(xyz), 1),
-              rxyzReporter(HID, (uint8_t*)&rxyz, sizeof(rxyz), 2),
+            : movementReporter(HID, (uint8_t*)&movement, sizeof(movement), 1),
               buttonsReporter(HID, (uint8_t*)&buttons, sizeof(buttons), 3),
               ledData(leds, HID_BUFFER_SIZE(1,4), 4, HID_BUFFER_MODE_NO_WAIT)
               {}
 
     void sendPosition() {
-      sendButtons();
-      xyzReporter.sendReport();
-      sendButtons();
-      rxyzReporter.sendReport();
+      movementReporter.sendReport();
     }
 
     void sendButtons() {
@@ -385,12 +377,12 @@ void processBuffer(const uint8* buf, uint32 len) {
         Joy3D.send();
       }
       else {
-        Mouse3D.xyz.x = trim(get16(buf, 3)); // rl adjusts
-        Mouse3D.xyz.y = trim(get16(buf, 5));
-        Mouse3D.xyz.z = trim(-get16(buf, 7)); // rl adjusts
-        Mouse3D.rxyz.rx = trim(get16(buf, 9)); // rl adjusts
-        Mouse3D.rxyz.ry = trim(get16(buf, 11));
-        Mouse3D.rxyz.rz = trim(-get16(buf, 13)); //rl adjusts
+        Mouse3D.movement.x = trim(get16(buf, 3)); // rl adjusts
+        Mouse3D.movement.y = trim(get16(buf, 5));
+        Mouse3D.movement.z = trim(-get16(buf, 7)); // rl adjusts
+        Mouse3D.movement.rx = trim(get16(buf, 9)); // rl adjusts
+        Mouse3D.movement.ry = trim(get16(buf, 11));
+        Mouse3D.movement.rz = trim(-get16(buf, 13)); //rl adjusts
         Mouse3D.send();
       }
     }
