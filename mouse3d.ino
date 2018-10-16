@@ -2,6 +2,12 @@
 // Needs USBComposite library: 
 #include <USBComposite.h>
 
+static const uint16 joyVendorId=0x1EAF; 
+static const uint16 mouseVendorId=0x046D;
+static const char mouseManufacturerString[]="3dconnexion";
+static const char mouseProductString[]="SpaceMouse Pro";
+static const uint16 mouseProductId=0xc62b;
+
 #define MOUSE_ON_SERIAL1 // disable this if using the PC to bridge from rs232 to UART
 //#define DEBUG
 #define POWER_CONTROL PB11
@@ -36,6 +42,8 @@ int16 trim(int16 v) {
     return v;
 }
 
+#define INPUT_MODE 0x02 // 0x06 = relative, 0x02 = absolute
+
 uint8_t descriptor_mouse3d[] = {
   0x05, 0x01,           /*  Usage Page (Generic Desktop) */ 
   0x09, 0x08,           /*  0x08: Usage (Multi-Axis Controller) */ 
@@ -54,7 +62,7 @@ uint8_t descriptor_mouse3d[] = {
   0x09, 0x35,           /*    Usage (RZ) */ 
   0x75, 0x10,           /*    Report Size (16) */ 
   0x95, 0x06,           /*    Report Count (6) */ 
-  0x81, 0x02,           /*    Input (variable,absolute) */ 
+  0x81, INPUT_MODE,           /*    Input (variable,absolute) */ 
   0xC0,                           /*  End Collection */ 
 
 #if 0
@@ -231,10 +239,10 @@ HIDJoy3D Joy3D(HID);
 
 void startMouse3D() {  
   USBComposite.clear();
-  USBComposite.setManufacturerString("3dconnexion"); // "stm32duino");
-  USBComposite.setProductString("SpaceMouse Pro"); // "Mouse3D");
-  USBComposite.setVendorId(0x46D);
-  USBComposite.setProductId(0xc62b); 
+  USBComposite.setManufacturerString(mouseManufacturerString); 
+  USBComposite.setProductString(mouseProductString); 
+  USBComposite.setVendorId(mouseVendorId);
+  USBComposite.setProductId(mouseProductId); 
   HID.clearBuffers();
   HID.setReportDescriptor(descriptor_mouse3d, sizeof(descriptor_mouse3d));
   HID.registerComponent();
@@ -252,8 +260,8 @@ void startJoy3D() {
   USBComposite.clear();
   USBComposite.setManufacturerString("stm32duino");
   USBComposite.setProductString("Mouse3D");
-  USBComposite.setVendorId(0x1EAF);
-  USBComposite.setProductId(0xc62b); 
+  USBComposite.setVendorId(joyVendorId);
+  USBComposite.setProductId(mouseProductId); 
   HID.clearBuffers();
   HID.setReportDescriptor(descriptor_joy3d, sizeof(descriptor_joy3d));
   HID.registerComponent();
@@ -377,12 +385,12 @@ void processBuffer(const uint8* buf, uint32 len) {
         Joy3D.send();
       }
       else {
-        Mouse3D.movement.x = trim(get16(buf, 3)); // rl adjusts
-        Mouse3D.movement.y = trim(get16(buf, 5));
-        Mouse3D.movement.z = trim(-get16(buf, 7)); // rl adjusts
-        Mouse3D.movement.rx = trim(get16(buf, 9)); // rl adjusts
-        Mouse3D.movement.ry = trim(get16(buf, 11));
-        Mouse3D.movement.rz = trim(-get16(buf, 13)); //rl adjusts
+        Mouse3D.movement.x = trim(get16(buf, 3)); 
+        Mouse3D.movement.z = trim(-get16(buf, 5));
+        Mouse3D.movement.y = trim(-get16(buf, 7)); 
+        Mouse3D.movement.rx = trim(get16(buf, 9));
+        Mouse3D.movement.rz = trim(-get16(buf, 11));
+        Mouse3D.movement.ry = trim(-get16(buf, 13));
         Mouse3D.send();
       }
     }
