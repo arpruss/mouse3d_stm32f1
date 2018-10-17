@@ -2,6 +2,7 @@
 // Needs USBComposite library: 
 #include <USBComposite.h>
 
+static const uint32 dominationPercent = 50;
 static const uint16 joyVendorId=0x1EAF; 
 static const uint16 mouseVendorId=0x046D;
 static const char mouseManufacturerString[]="3dconnexion";
@@ -9,7 +10,7 @@ static const char mouseProductString[]="SpaceMouse Pro";
 static const uint16 mouseProductId=0xc62b;
 
 #define MOUSE_ON_SERIAL1 // disable this if using the PC to bridge from rs232 to UART
-//#define DEBUG
+#define DEBUG
 #define POWER_CONTROL PB11
 
 #ifdef MOUSE_ON_SERIAL1
@@ -23,14 +24,18 @@ static const uint16 mouseProductId=0xc62b;
 
 #define LED PB12 // change to PC13 if you have a blue pill
 
-bool joyMode = false;
+#define MODE_JOYSTICK      0x01
+#define MODE_DOMINANT_TYPE 0x02
+#define MODE_CUBIC         0x04
+#define MODE_SET           0x40
+uint8_t mode = 0; // MODE_DOMINANT_TYPE;
 static const int16 trimValue = 500;
 static const uint8 minLow = (-trimValue)&0xFF;
 static const uint8 minHigh = ((-trimValue)>>8)&0xFF;
 static const uint8 maxLow = (trimValue)&0xFF;
 static const uint8 maxHigh = ((trimValue)>>8)&0xFF;
 
-const char preface[] = "P20\rYS\rAE\rA271006\rM\r"; // update period 32ms, sensitivity Standard (vs. Cubic), auto-rezero Enable (D to disable), auto-rezero after 10,000 ms assuming 6 movement units
+const char preface[] = "P20\rAE\rA271006\rM\r"; // update period 32ms, sensitivity Standard (vs. Cubic), auto-rezero Enable (D to disable), auto-rezero after 10,000 ms assuming 6 movement units
 const char rezero[] = "Z\r";
 
 int16 trim(int16 v) {
@@ -100,6 +105,16 @@ uint8_t descriptor_mouse3d[] = {
   0x91, 0x02,         /*   OUTPUT (Data,Var,Abs) */    
   0xC0,
 
+  0xa1, 0x00,           // Collection (Physical)
+  0x85, 0x05,           //  Report ID 
+  0x05, 0x08,       /*   USAGE_PAGE (LEDs) */ 
+  0x19, 0x01,       /*   USAGE_MINIMUM (1) */ 
+  0x29, 0x08,       /*   USAGE_MAXIMUM (8)*/ 
+  0x95, 0x08,       /*   REPORT_COUNT (8) */ 
+  0x75, 0x01,       /*   REPORT_SIZE (1) */ 
+  0x91, 0x02,         /*   OUTPUT (Data,Var,Abs) */    
+  0xC0,
+
   0xC0
 };
 
@@ -134,6 +149,16 @@ uint8_t descriptor_joy3d[] = {
 
   0xa1, 0x00,           // Collection (Physical)
   0x85, 0x04,           //  Report ID 
+  0x05, 0x08,       /*   USAGE_PAGE (LEDs) */ 
+  0x19, 0x01,       /*   USAGE_MINIMUM (1) */ 
+  0x29, 0x08,       /*   USAGE_MAXIMUM (8)*/ 
+  0x95, 0x08,       /*   REPORT_COUNT (8) */ 
+  0x75, 0x01,       /*   REPORT_SIZE (1) */ 
+  0x91, 0x02,         /*   OUTPUT (Data,Var,Abs) */    
+  0xC0,
+
+  0xa1, 0x00,           // Collection (Physical)
+  0x85, 0x05,           //  Report ID 
   0x05, 0x08,       /*   USAGE_PAGE (LEDs) */ 
   0x19, 0x01,       /*   USAGE_MINIMUM (1) */ 
   0x29, 0x08,       /*   USAGE_MAXIMUM (8)*/ 
@@ -180,6 +205,9 @@ typedef struct {
     uint16_t buttons;
 } __packed ReportJoy_t;
 
+volatile uint8_t ledBuffer[HID_BUFFER_ALLOCATE_SIZE(1,1)] = {0};
+volatile uint8_t modeBuffer[HID_BUFFER_ALLOCATE_SIZE(1,1)] = {0};
+
 class HIDMouse3D {
 protected:
 public:
@@ -188,11 +216,12 @@ public:
     HIDReporter movementReporter;
     HIDReporter buttonsReporter;
     HIDBuffer_t ledData;
-    uint8_t leds[HID_BUFFER_ALLOCATE_SIZE(1,1)];
+    HIDBuffer_t modeData;
     HIDMouse3D(USBHID& HID) 
             : movementReporter(HID, (uint8_t*)&movement, sizeof(movement), 1),
               buttonsReporter(HID, (uint8_t*)&buttons, sizeof(buttons), 3),
-              ledData(leds, HID_BUFFER_SIZE(1,4), 4, HID_BUFFER_MODE_NO_WAIT)
+              ledData(ledBuffer, HID_BUFFER_SIZE(1,4), 4, HID_BUFFER_MODE_NO_WAIT),
+              modeData(modeBuffer, HID_BUFFER_SIZE(1,5), 5, HID_BUFFER_MODE_NO_WAIT)
               {}
 
     void sendPosition() {
@@ -210,6 +239,7 @@ public:
 
     void begin() {
       HID.addOutputBuffer(&ledData);      
+      HID.addOutputBuffer(&modeData);
     }
 };
 
@@ -219,10 +249,13 @@ public:
     ReportJoy_t report;
     HIDReporter reporter;
     HIDBuffer_t ledData;
-    uint8_t leds[HID_BUFFER_ALLOCATE_SIZE(1,1)];
+    volatile uint8_t leds[HID_BUFFER_ALLOCATE_SIZE(1,1)];
+    HIDBuffer_t modeData;
+    volatile uint8_t mode[HID_BUFFER_ALLOCATE_SIZE(1,1)];
     HIDJoy3D(USBHID& HID) 
             : reporter(HID, (uint8_t*)&report, sizeof(report), 1),
-              ledData(leds, HID_BUFFER_SIZE(1,4), 4, HID_BUFFER_MODE_NO_WAIT)
+              ledData(ledBuffer, HID_BUFFER_SIZE(1,4), 4, HID_BUFFER_MODE_NO_WAIT),
+              modeData(modeBuffer, HID_BUFFER_SIZE(1,5), 5, HID_BUFFER_MODE_NO_WAIT)
               {}
 
     void send() {
@@ -231,6 +264,7 @@ public:
 
     void begin() {
       HID.addOutputBuffer(&ledData);      
+      HID.addOutputBuffer(&modeData);      
     }
 };
 
@@ -275,6 +309,54 @@ void startJoy3D() {
   USBComposite.begin();
 }
 
+void loadMode() {
+  mode = 0;
+}
+
+void saveMode() {
+}
+
+void writeCubic(bool cubic) {
+  if (cubic)
+    SER.write("YC\r");
+  else
+    SER.write("YS\r");
+}
+
+void writeConfiguration() {
+  SER.write(preface);  
+  writeCubic((mode & MODE_CUBIC) != 0);
+}
+
+void setMode(uint8 newMode) {
+  if (mode == newMode)
+    return;
+  uint8_t delta = mode ^ newMode;
+  if (delta & MODE_JOYSTICK) {
+    if (0 == (newMode & MODE_JOYSTICK)) {
+        HID.end();
+        USBComposite.end();
+        SER.write("BaA\r");
+        delay(1000);
+        startMouse3D();
+        delay(1000);
+    }
+    else {
+        HID.end();
+        USBComposite.end();
+        SER.write("BjA\r");
+        delay(1000);
+        startJoy3D();
+        delay(1000);
+    }
+  }
+  if (delta & MODE_CUBIC) {
+    writeCubic(0 != (newMode & MODE_CUBIC));
+  }
+  mode = newMode;
+  saveMode();
+}
+
 void setup() {
 #ifdef MOUSE_ON_SERIAL1
   pinMode(POWER_CONTROL, OUTPUT);
@@ -286,10 +368,13 @@ void setup() {
   pinMode(LED, OUTPUT);
   digitalWrite(LED, 0);
 
-  if (joyMode) 
+  loadMode();
+  
+  if (mode & MODE_JOYSTICK) 
     startJoy3D();
   else
     startMouse3D();
+    
   delay(200);
   
   digitalWrite(LED,1);
@@ -309,12 +394,17 @@ void setup() {
 #endif      
     }
   }
-  SER.write(preface);  
+//  SER.write(preface);  
   while((millis()-t) < 2000) {
     if (SER.available()) Serial.read();
-  } 
-  SER.write(preface);  
-  Mouse3D.send();
+  }
+  
+  writeConfiguration();  
+
+  if (mode & MODE_JOYSTICK) 
+    Joy3D.send();
+  else
+    Mouse3D.send();
 }
 
 #define BUFFER_SIZE 128
@@ -340,29 +430,15 @@ void processBuffer(const uint8* buf, uint32 len) {
 #endif      
 #ifndef SWITCHABLE_BROKEN
       if ((b & (0b111 << 6)) == (0b111 << 6)) {
-        if (joyMode && (b & (1 << 3))) {
-          joyMode = false;
-          HID.end();
-          USBComposite.end();
-          SER.write("BaA\r");
-          delay(1000);
-          startMouse3D();
-          delay(1000);
-          return;
+        if (b & (1 << 3)) {
+          setMode(mode & ~MODE_JOYSTICK);
         }
-        else if (!joyMode && (b & (1 << 4))) {
-          joyMode = true;
-          HID.end();
-          USBComposite.end();
-          SER.write("BjA\r");
-          delay(1000);
-          startJoy3D();
-          delay(1000);
-          return;
+        else if (b & (1 << 4)) {
+          setMode(mode | MODE_JOYSTICK);
         }
       }
 #endif      
-      if (joyMode) {
+      if (mode & MODE_JOYSTICK) {
         Joy3D.report.buttons = b;
         Joy3D.send();
       } 
@@ -375,7 +451,7 @@ void processBuffer(const uint8* buf, uint32 len) {
   else if (buf[0] == 'D') {
     if (len == 15) {
       lastD = millis();
-      if (joyMode) {      
+      if (mode & MODE_JOYSTICK) {      
         Joy3D.report.x = trim(get16(buf, 3));
         Joy3D.report.z = trim(get16(buf, 5));
         Joy3D.report.y = trim(-get16(buf, 7));
@@ -385,12 +461,44 @@ void processBuffer(const uint8* buf, uint32 len) {
         Joy3D.send();
       }
       else {
-        Mouse3D.movement.x = trim(get16(buf, 3)); 
-        Mouse3D.movement.z = trim(-get16(buf, 5));
-        Mouse3D.movement.y = trim(-get16(buf, 7)); 
-        Mouse3D.movement.rx = trim(get16(buf, 9));
-        Mouse3D.movement.rz = trim(-get16(buf, 11));
-        Mouse3D.movement.ry = trim(-get16(buf, 13));
+        int16 x = get16(buf, 3);
+        int16 z = get16(buf, 5);
+        int16 y = get16(buf, 7);
+        int16 rx = get16(buf, 9);
+        int16 rz = get16(buf, 11);
+        int16 ry = get16(buf, 13);
+        if (mode & MODE_DOMINANT_TYPE) {
+          uint32 t2 = (int32)x*x+(int32)y*y+(int32)z*z;
+          uint32 r2 = (int32)rx*x+(int32)ry*ry+(int32)rz*z;
+          if (t2 >= (1<<(31-15)) || r2 >= (1<<(31-15))) {
+            t2 >>= 15;
+            r2 >>= 15;
+          }
+          if (t2 * (dominationPercent*dominationPercent) >= r2 * 10000) {
+            rx = 0;
+            ry = 0;
+            rz = 0;
+          }
+          else if (r2 * (dominationPercent*dominationPercent) >= t2 * 10000) {
+            x = 0;
+            y = 0;
+            z = 0;
+          }
+          else {
+            x = 0;
+            y = 0;
+            z = 0;
+            rx = 0;
+            ry = 0;
+            rz = 0;
+          }
+        }
+        Mouse3D.movement.x = trim(x); 
+        Mouse3D.movement.z = trim(-z);
+        Mouse3D.movement.y = trim(-y); 
+        Mouse3D.movement.rx = trim(rx);
+        Mouse3D.movement.rz = trim(-rz);
+        Mouse3D.movement.ry = trim(-ry);
         Mouse3D.send();
       }
     }
@@ -402,7 +510,14 @@ void loop() {
      SER.write("M\r");
      lastD = millis();
   }
-//  digitalWrite(LED,(Mouse3D.leds[1] & 0x3) == 0);
+  digitalWrite(LED,(ledBuffer[1] & 0x3) == 0);
+#ifdef DEBUG  
+  CompositeSerial.println(String((uint32)ledBuffer[1],HEX)+" "+String((uint32)modeBuffer[1],HEX));
+#endif  
+  if (modeBuffer[1] & MODE_SET) {
+    setMode(modeBuffer[1]);
+    modeBuffer[1] = 0;
+  }
   while (SER.available()) {
     uint8 c = SER.read();
 #ifdef DEBUG
