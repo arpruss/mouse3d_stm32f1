@@ -10,42 +10,63 @@ except ImportError:
 from time import sleep,time
 
 TIMEOUT = 1
-REPORT_ID = 5
+REPORT_ID = 1
 REPORT_SIZE = 1
 
 def sendMode(mode):
-    data = [REPORT_ID] + [mode|0x40]
+    data = [REPORT_ID] + [mode]
     myReport.set_raw_data(data)
     myReport.send()
     
 myReport = None
+currentMode = None
 
 while myReport is None:    
+    print("Searching for device...")
     for d in hid.HidDeviceFilter(product_id = 0xc62b).get_devices():
         if d.vendor_id == 0x1EAF or d.vendor_id == 0x046D:
             device = d
             device.open()
 
             for report in device.find_feature_reports():
-                print(report)
                 if report.report_id == REPORT_ID and report.report_type == "Feature":
                     myReport = report
                     break
                         
             if myReport is not None:
-                break
+                currentMode = myReport.get()
+                if len(currentMode) >= 2:
+                    currentMode = currentMode[1]
+                    break
             
             myReport = None
             device.close()
-        
-    sleep(0.25)
 
-print("Device found")    
+    if myReport is None:
+        sleep(1)
+
+print("Device found in mode %02x" % currentMode)    
+if len(argv)<=1:
+    print("python mode.py [joystick|3dmouse] [cubic|standard] [dominant|allaxes]")
+    print("You can abbreviate modes to their first letters.")
+    exit(0)
+
+for a in argv[1:]:
+    if a[0] == 'j':
+        currentMode |= 1
+    elif a[0] == '3':
+        currentMode &= ~1
+    elif a[0] == 'c':
+        currentMode |= 4
+    elif a[0] == 's':
+        currentMode &= ~4
+    elif a[0] == 'd':
+        currentMode |= 2
+    elif a[0] == 'a':
+        currentMode &= 2
     
-if len(argv)>1:
-    m = ast.literal_eval(argv[1])
-    sendMode(m)
-    print("Setting mode %02x" % m)
+print("Setting mode %02x" % currentMode)
+sendMode(currentMode)
 device.close()
 
 if False:

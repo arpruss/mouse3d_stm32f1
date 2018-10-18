@@ -9,6 +9,8 @@ static const char mouseManufacturerString[]="3dconnexion";
 static const char mouseProductString[]="SpaceMouse Pro";
 static const uint16 mouseProductId=0xc62b;
 
+#define INPUT_MODE 1
+
 #define MOUSE_ON_SERIAL1 // disable this if using the PC to bridge from rs232 to UART
 #define DEBUG
 #define POWER_CONTROL PB11
@@ -27,7 +29,6 @@ static const uint16 mouseProductId=0xc62b;
 #define MODE_JOYSTICK      0x01
 #define MODE_DOMINANT_TYPE 0x02
 #define MODE_CUBIC         0x04
-#define MODE_SET           0x40
 uint8_t mode = 0; // MODE_DOMINANT_TYPE;
 static const int16 trimValue = 500;
 static const uint8 minLow = (-trimValue)&0xFF;
@@ -69,6 +70,16 @@ uint8_t descriptor_mouse3d[] = {
   0x95, 0x06,           /*    Report Count (6) */ 
   0x81, INPUT_MODE,           /*    Input (variable,absolute) */ 
 
+    0xa1, 0x02,                         //   COLLECTION (logical)     
+  //  0x85, 0x05,         /*  Report ID */
+    0x09, 0x52,                         //    USAGE (Input Mode)         
+    0x15, 0x00,                         //    LOGICAL_MINIMUM (0)      
+    0x25, 0x0a,                         //    LOGICAL_MAXIMUM (255)
+    0x75, 0x08,                         //    REPORT_SIZE (8)         
+    0x95, 0x01,                         //    REPORT_COUNT (8)         
+    0xb1, 0x02,                         //    FEATURE (Data,Var,Abs    
+    0xc0,                               //   END_COLLECTION
+  
   0xC0,                           /*  End Collection */ 
 
   0xa1, 0x00,            // Collection (Physical)
@@ -93,16 +104,6 @@ uint8_t descriptor_mouse3d[] = {
   0x91, 0x02,         /*   OUTPUT (Data,Var,Abs) */    
   0xC0,
 
-    0xa1, 0x02,                         //   COLLECTION (logical)     
-    0x85, 0x05,         /*  Report ID */
-    0x09, 0x52,                         //    USAGE (Input Mode)         
-    0x15, 0x00,                         //    LOGICAL_MINIMUM (0)      
-    0x25, 0x0a,                         //    LOGICAL_MAXIMUM (255)
-    0x75, 0x08,                         //    REPORT_SIZE (8)         
-    0x95, 0x01,                         //    REPORT_COUNT (8)         
-    0xb1, 0x02,                         //    FEATURE (Data,Var,Abs    
-    0xc0,                               //   END_COLLECTION
-  
   0xC0
 };
 
@@ -133,6 +134,13 @@ uint8_t descriptor_joy3d[] = {
   0x19, 1,           /*    Usage Minimum (Button #1) */ 
   0x29, 16,           /*    Usage Maximum (Button #16) */ 
   0x81, 0x02,           /*    Input (variable,absolute) */ 
+  
+    0x09, 0x52,                         //    USAGE (Input Mode)         
+    0x15, 0x00,                         //    LOGICAL_MINIMUM (0)      
+    0x25, 0x0a,                         //    LOGICAL_MAXIMUM (255)
+    0x75, 0x08,                         //    REPORT_SIZE (1)         
+    0x95, 0x01,                         //    REPORT_COUNT (8)         
+    0xb1, 0x02,                         //    FEATURE (Data,Var,Abs)
   0xC0,
 
   0xa1, 0x00,           // Collection (Physical)
@@ -144,16 +152,7 @@ uint8_t descriptor_joy3d[] = {
   0x75, 0x01,       /*   REPORT_SIZE (1) */ 
   0x91, 0x02,         /*   OUTPUT (Data,Var,Abs) */    
   0xC0,
-  
-    0xa1, 0x02,                         //   COLLECTION (logical)     
-    0x85, 0x05,         /*  Report ID */
-    0x09, 0x52,                         //    USAGE (Input Mode)         
-    0x15, 0x00,                         //    LOGICAL_MINIMUM (0)      
-    0x25, 0x0a,                         //    LOGICAL_MAXIMUM (255)
-    0x75, 0x08,                         //    REPORT_SIZE (8)         
-    0x95, 0x01,                         //    REPORT_COUNT (8)         
-    0xb1, 0x02,                         //    FEATURE (Data,Var,Abs    
-    0xc0,                               //   END_COLLECTION
+
   0xC0
 };
 
@@ -193,7 +192,7 @@ typedef struct {
 } __packed ReportJoy_t;
 
 volatile uint8_t ledBuffer[HID_BUFFER_ALLOCATE_SIZE(1,1)] = {0};
-volatile uint8_t modeBuffer[HID_BUFFER_ALLOCATE_SIZE(1,1)] = {0};
+volatile uint8_t modeBuffer[HID_BUFFER_ALLOCATE_SIZE(1,1)];
 
 class HIDMouse3D {
 protected:
@@ -208,7 +207,7 @@ public:
             : movementReporter(HID, (uint8_t*)&movement, sizeof(movement), 1),
               buttonsReporter(HID, (uint8_t*)&buttons, sizeof(buttons), 3),
               ledData(ledBuffer, HID_BUFFER_SIZE(1,4), 4, HID_BUFFER_MODE_NO_WAIT),
-              modeData(modeBuffer, HID_BUFFER_SIZE(1,1), 5, HID_BUFFER_MODE_NO_WAIT)
+              modeData(modeBuffer, HID_BUFFER_SIZE(1,4), 1, HID_BUFFER_MODE_NO_WAIT)
               {}
 
     void sendPosition() {
@@ -242,7 +241,7 @@ public:
     HIDJoy3D(USBHID& HID) 
             : reporter(HID, (uint8_t*)&report, sizeof(report), 1),
               ledData(ledBuffer, HID_BUFFER_SIZE(1,4), 4, HID_BUFFER_MODE_NO_WAIT),
-              modeData(modeBuffer, HID_BUFFER_SIZE(1,5), 5, HID_BUFFER_MODE_NO_WAIT)
+              modeData(modeBuffer, HID_BUFFER_SIZE(1,4), 1, HID_BUFFER_MODE_NO_WAIT)
               {}
 
     void send() {
@@ -297,10 +296,34 @@ void startJoy3D() {
 }
 
 void loadMode() {
-  mode = 0;
+  EEPROM8_init();
+  int i = EEPROM8_getValue(INPUT_MODE);
+  if (i < 0)
+    mode = 0;
+  else
+    mode = i; 
+}
+
+bool getFeature(uint8* newModeP) {
+  if (mode & MODE_JOYSTICK) {
+    return Joy3D.reporter.getFeature(newModeP);
+  }
+  else {
+    return Mouse3D.movementReporter.getFeature(newModeP);
+  }
+}
+
+void setFeature() {
+  if (mode & MODE_JOYSTICK) {
+    Joy3D.reporter.setFeature(&mode);
+  }
+  else {
+    Mouse3D.movementReporter.setFeature(&mode);
+  }
 }
 
 void saveMode() {
+  EEPROM8_storeValue(INPUT_MODE, mode);
 }
 
 void writeCubic(bool cubic) {
@@ -341,6 +364,7 @@ void setMode(uint8 newMode) {
     writeCubic(0 != (newMode & MODE_CUBIC));
   }
   mode = newMode;
+  setFeature();
   saveMode();
 }
 
@@ -356,11 +380,15 @@ void setup() {
   digitalWrite(LED, 0);
 
   loadMode();
-  
-  if (mode & MODE_JOYSTICK) 
+
+  if (mode & MODE_JOYSTICK) {
     startJoy3D();
-  else
+  }
+  else {
     startMouse3D();
+  }
+
+  setFeature();
     
   delay(200);
   
@@ -500,11 +528,14 @@ void loop() {
   digitalWrite(LED,(ledBuffer[1] & 0x3) == 0);
 #ifdef DEBUG  
   CompositeSerial.println(String((uint32)ledBuffer[1],HEX)+" "+String((uint32)modeBuffer[1],HEX));
-#endif  
-  if (modeBuffer[1] & MODE_SET) {
-    setMode(modeBuffer[1]);
-    modeBuffer[1] = 0;
+#endif
+
+  uint8 newMode;  
+  
+  if (getFeature(&newMode)) {
+    setMode(newMode);
   }
+  
   while (SER.available()) {
     uint8 c = SER.read();
 #ifdef DEBUG
