@@ -44,10 +44,30 @@ while myReport is None:
 
     if myReport is None:
         sleep(1)
+        
+def describe(mode):
+    out = []
+    if currentMode & 1:
+        out.append("joystick")
+    else:
+        out.append("3dmouse")
+        
+    if currentMode &2 :
+        out.append("dominant")
+    else:
+        out.append("allaxes")
 
-print("Device found in mode %02x" % currentMode)    
+    if currentMode &4 :
+        out.append("cubic")
+    else:
+        out.append("standard")
+        
+    return ' '.join(out)
+
+print("Device found in mode %02x (%s)" % (currentMode,describe(currentMode)))
+
 if len(argv)<=1:
-    print("python mode.py [joystick|3dmouse] [cubic|standard] [dominant|allaxes]")
+    print("python mode.py [joystick|3dmouse] [dominant|allaxes] [cubic|standard]")
     print("You can abbreviate modes to their first letters.")
     exit(0)
 
@@ -65,7 +85,7 @@ for a in argv[1:]:
     elif a[0] == 'a':
         currentMode &= 2
     
-print("Setting mode %02x" % currentMode)
+print("Setting mode %02x (%s)" % (currentMode,describe(currentMode)))
 sendMode(currentMode)
 device.close()
 
