@@ -68,21 +68,9 @@ uint8_t descriptor_mouse3d[] = {
   0x75, 0x10,           /*    Report Size (16) */ 
   0x95, 0x06,           /*    Report Count (6) */ 
   0x81, INPUT_MODE,           /*    Input (variable,absolute) */ 
+
   0xC0,                           /*  End Collection */ 
 
-#if 0
-  0xa1, 0x00,            // Collection (Physical)
-  0x85, 0x02,         /*  Report ID */
-  0x16, minLow,minHigh,        //logical minimum (-500)
-  0x26, maxLow,maxHigh,        //logical maximum (500)
-  0x36, 0x00,0x80,              // Physical Minimum (-32768)
-  0x46, 0xff,0x7f,              //Physical Maximum (32767)
-  0x75, 0x10,           /*    Report Size (16) */ 
-  0x95, 0x03,           /*    Report Count (3) */ 
-  0x81, 0x02,           /*    Input (variable,absolute) */ 
-  0xC0,                           /*  End Collection */ 
-#endif  
-    
   0xa1, 0x00,            // Collection (Physical)
   0x85, 0x03,         /*  Report ID */
   0x15, 0x00,           /*   Logical Minimum (0) */ 
@@ -105,16 +93,16 @@ uint8_t descriptor_mouse3d[] = {
   0x91, 0x02,         /*   OUTPUT (Data,Var,Abs) */    
   0xC0,
 
-  0xa1, 0x00,           // Collection (Physical)
-  0x85, 0x05,           //  Report ID 
-  0x05, 0x08,       /*   USAGE_PAGE (LEDs) */ 
-  0x19, 0x01,       /*   USAGE_MINIMUM (1) */ 
-  0x29, 0x08,       /*   USAGE_MAXIMUM (8)*/ 
-  0x95, 0x08,       /*   REPORT_COUNT (8) */ 
-  0x75, 0x01,       /*   REPORT_SIZE (1) */ 
-  0x91, 0x02,         /*   OUTPUT (Data,Var,Abs) */    
-  0xC0,
-
+    0xa1, 0x02,                         //   COLLECTION (logical)     
+    0x85, 0x05,         /*  Report ID */
+    0x09, 0x52,                         //    USAGE (Input Mode)         
+    0x15, 0x00,                         //    LOGICAL_MINIMUM (0)      
+    0x25, 0x0a,                         //    LOGICAL_MAXIMUM (255)
+    0x75, 0x08,                         //    REPORT_SIZE (8)         
+    0x95, 0x01,                         //    REPORT_COUNT (8)         
+    0xb1, 0x02,                         //    FEATURE (Data,Var,Abs    
+    0xc0,                               //   END_COLLECTION
+  
   0xC0
 };
 
@@ -156,17 +144,16 @@ uint8_t descriptor_joy3d[] = {
   0x75, 0x01,       /*   REPORT_SIZE (1) */ 
   0x91, 0x02,         /*   OUTPUT (Data,Var,Abs) */    
   0xC0,
-
-  0xa1, 0x00,           // Collection (Physical)
-  0x85, 0x05,           //  Report ID 
-  0x05, 0x08,       /*   USAGE_PAGE (LEDs) */ 
-  0x19, 0x01,       /*   USAGE_MINIMUM (1) */ 
-  0x29, 0x08,       /*   USAGE_MAXIMUM (8)*/ 
-  0x95, 0x08,       /*   REPORT_COUNT (8) */ 
-  0x75, 0x01,       /*   REPORT_SIZE (1) */ 
-  0x91, 0x02,         /*   OUTPUT (Data,Var,Abs) */    
-  0xC0,
-
+  
+    0xa1, 0x02,                         //   COLLECTION (logical)     
+    0x85, 0x05,         /*  Report ID */
+    0x09, 0x52,                         //    USAGE (Input Mode)         
+    0x15, 0x00,                         //    LOGICAL_MINIMUM (0)      
+    0x25, 0x0a,                         //    LOGICAL_MAXIMUM (255)
+    0x75, 0x08,                         //    REPORT_SIZE (8)         
+    0x95, 0x01,                         //    REPORT_COUNT (8)         
+    0xb1, 0x02,                         //    FEATURE (Data,Var,Abs    
+    0xc0,                               //   END_COLLECTION
   0xC0
 };
 
@@ -221,7 +208,7 @@ public:
             : movementReporter(HID, (uint8_t*)&movement, sizeof(movement), 1),
               buttonsReporter(HID, (uint8_t*)&buttons, sizeof(buttons), 3),
               ledData(ledBuffer, HID_BUFFER_SIZE(1,4), 4, HID_BUFFER_MODE_NO_WAIT),
-              modeData(modeBuffer, HID_BUFFER_SIZE(1,5), 5, HID_BUFFER_MODE_NO_WAIT)
+              modeData(modeBuffer, HID_BUFFER_SIZE(1,1), 5, HID_BUFFER_MODE_NO_WAIT)
               {}
 
     void sendPosition() {
@@ -239,7 +226,7 @@ public:
 
     void begin() {
       HID.addOutputBuffer(&ledData);      
-      HID.addOutputBuffer(&modeData);
+      HID.addFeatureBuffer(&modeData);
     }
 };
 
@@ -264,7 +251,7 @@ public:
 
     void begin() {
       HID.addOutputBuffer(&ledData);      
-      HID.addOutputBuffer(&modeData);      
+      HID.addFeatureBuffer(&modeData);      
     }
 };
 

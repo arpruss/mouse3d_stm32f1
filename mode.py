@@ -26,8 +26,9 @@ while myReport is None:
             device = d
             device.open()
 
-            for report in device.find_output_reports():
-                if report.report_id == REPORT_ID and report.report_type == "Output":
+            for report in device.find_feature_reports():
+                print(report)
+                if report.report_id == REPORT_ID and report.report_type == "Feature":
                     myReport = report
                     break
                         
