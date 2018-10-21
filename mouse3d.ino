@@ -1,13 +1,21 @@
-// 24-button 3D mouse
+// 15-button 3D mouse
 // Needs USBComposite library: 
 #include <USBComposite.h>
+#include "debounce.h"
 
 static const uint32 dominationPercent = 50;
 static const uint16 joyVendorId=0x1EAF; 
 static const uint16 mouseVendorId=0x046D;
 static const char mouseManufacturerString[]="3dconnexion";
-static const char mouseProductString[]="SpaceMouse Pro";
+static const char mouseProductString[]="SpaceMouse Pro"; 
 static const uint16 mouseProductId=0xc62b;
+
+#define BUTTON12 PA0
+#define BUTTON13 PA1
+#define BUTTON14 PA2
+Debounce button12(BUTTON12, LOW);
+Debounce button13(BUTTON13, LOW);
+Debounce button14(BUTTON14, LOW);
 
 #define INPUT_MODE 1
 
@@ -87,11 +95,14 @@ uint8_t descriptor_mouse3d[] = {
   0x15, 0x00,           /*   Logical Minimum (0) */ 
   0x25, 0x01,           /*    Logical Maximum (1) */
   0x75, 0x01,           /*    Report Size (1) */ 
-  0x95, 24,           /*    Report Count (24) */
+  0x95, 15,           /*    Report Count (24) */
   0x05, 0x09,           /*    Usage Page (Button) */ 
   0x19, 1,           /*    Usage Minimum (Button #1) */ 
-  0x29, 24,           /*    Usage Maximum (Button #24) */ 
+  0x29, 15,           /*    Usage Maximum (Button #24) */ 
   0x81, 0x02,           /*    Input (variable,absolute) */ 
+  0x95, 0x01,          //     REPORT_COUNT = 1
+  0x75, 32-15,          //     REPORT_SIZE = 5
+  0x81, 0x03,          //     INPUT = Cnst,Var,Abs
   0xC0,
 
   0xa1, 0x00,           // Collection (Physical)
@@ -129,11 +140,14 @@ uint8_t descriptor_joy3d[] = {
   0x15, 0x00,           /*   Logical Minimum (0) */ 
   0x25, 0x01,           /*    Logical Maximum (1) */
   0x75, 0x01,           /*    Report Size (1) */ 
-  0x95, 16,           /*    Report Count (16) */
+  0x95, 15,           /*    Report Count (15) */
   0x05, 0x09,           /*    Usage Page (Button) */ 
   0x19, 1,           /*    Usage Minimum (Button #1) */ 
-  0x29, 16,           /*    Usage Maximum (Button #16) */ 
+  0x29, 15,           /*    Usage Maximum (Button #16) */ 
   0x81, 0x02,           /*    Input (variable,absolute) */ 
+  0x95, 0x01,          //     REPORT_COUNT = 1
+  0x75, 32-15,         //     REPORT_SIZE = 5
+  0x81, 0x03,          //     INPUT = Cnst,Var,Abs
   
     0x09, 0x52,                         //    USAGE (Input Mode)         
     0x15, 0x00,                         //    LOGICAL_MINIMUM (0)      
@@ -176,8 +190,7 @@ typedef struct {
 
 typedef struct {
     uint8_t reportID;
-    uint16_t buttons;
-    uint8_t ignore[1];
+    uint32_t buttons;
 } __packed ReportButtons_t;
 
 typedef struct {
@@ -188,11 +201,22 @@ typedef struct {
     int16 rx;
     int16 ry;
     int16 rz;
-    uint16_t buttons;
+    uint32_t buttons;
 } __packed ReportJoy_t;
 
 volatile uint8_t ledBuffer[HID_BUFFER_ALLOCATE_SIZE(1,1)] = {0};
 volatile uint8_t modeBuffer[HID_BUFFER_ALLOCATE_SIZE(1,1)];
+
+uint32 addExtraButtons(uint32 buttons) {
+   buttons &= (1<<12)-1;
+   if (button12.getLastState())
+      buttons |= 1<<12;
+   if (button13.getLastState())
+      buttons |= 1<<13;
+   if (button14.getLastState())
+      buttons |= 1<<14;
+   return buttons;
+}
 
 class HIDMouse3D {
 protected:
@@ -215,6 +239,7 @@ public:
     }
 
     void sendButtons() {
+      buttons.buttons = addExtraButtons(buttons.buttons);
       buttonsReporter.sendReport();
     }
 
@@ -245,6 +270,7 @@ public:
               {}
 
     void send() {
+      report.buttons = addExtraButtons(report.buttons);
       reporter.sendReport();
     }
 
@@ -368,6 +394,13 @@ void setMode(uint8 newMode) {
   saveMode();
 }
 
+void send() {
+  if (mode & MODE_JOYSTICK) 
+    Joy3D.send();
+  else
+    Mouse3D.send();
+}
+
 void setup() {
 #ifdef MOUSE_ON_SERIAL1
   pinMode(POWER_CONTROL, OUTPUT);
@@ -375,6 +408,13 @@ void setup() {
   pinMode(PA9, OUTPUT);
   digitalWrite(PA9, 1);
 #endif
+
+  pinMode(BUTTON12, INPUT_PULLUP);
+  pinMode(BUTTON13, INPUT_PULLUP);
+  pinMode(BUTTON14, INPUT_PULLUP);
+  button12.begin();
+  button13.begin();
+  button14.begin();
 
   pinMode(LED, OUTPUT);
   digitalWrite(LED, 0);
@@ -416,10 +456,7 @@ void setup() {
   
   writeConfiguration();  
 
-  if (mode & MODE_JOYSTICK) 
-    Joy3D.send();
-  else
-    Mouse3D.send();
+  send();
 }
 
 #define BUFFER_SIZE 128
@@ -536,6 +573,10 @@ void loop() {
     setMode(newMode);
   }
   
+  if (button12.wasToggled() || button13.wasToggled() || button14.wasToggled()) {
+    send();  
+  }
+
   while (SER.available()) {
     uint8 c = SER.read();
 #ifdef DEBUG

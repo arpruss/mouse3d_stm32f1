@@ -23,7 +23,7 @@ currentMode = None
 
 while myReport is None:    
     print("Searching for device...")
-    for d in hid.HidDeviceFilter(product_id = 0xc62b).get_devices():
+    for d in hid.HidDeviceFilter(product_id = 0xc629 +0*0xc62b).get_devices():
         if d.vendor_id == 0x1EAF or d.vendor_id == 0x046D:
             device = d
             device.open()
@@ -83,7 +83,7 @@ for a in argv[1:]:
     elif a[0] == 'd':
         currentMode |= 2
     elif a[0] == 'a':
-        currentMode &= 2
+        currentMode &= ~2
     
 print("Setting mode %02x (%s)" % (currentMode,describe(currentMode)))
 sendMode(currentMode)
