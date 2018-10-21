@@ -20,7 +20,7 @@ Debounce button14(BUTTON14, LOW);
 #define INPUT_MODE 1
 
 #define MOUSE_ON_SERIAL1 // disable this if using the PC to bridge from rs232 to UART
-#define DEBUG
+//#define DEBUG
 #define POWER_CONTROL PB11
 
 #ifdef MOUSE_ON_SERIAL1
@@ -572,8 +572,13 @@ void loop() {
   if (getFeature(&newMode)) {
     setMode(newMode);
   }
+
+  // this code is written awkwardly to avoid short-circuiting the three
+  // calls to Debounce::wasToggled()
   
-  if (button12.wasToggled() || button13.wasToggled() || button14.wasToggled()) {
+  bool toggled = button12.wasToggled();
+  toggled = button13.wasToggled() || toggled;
+  if (button14.wasToggled() || toggled) {
     send();  
   }
 
