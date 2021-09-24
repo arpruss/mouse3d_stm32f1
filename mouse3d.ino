@@ -327,7 +327,7 @@ void loadMode() {
   if (i < 0)
     mode = 0;
   else
-    mode = i; 
+    mode = i & ~MODE_DOMINANT_TYPE; 
 }
 
 bool getFeature(uint8* newModeP) {
@@ -395,8 +395,9 @@ void setMode(uint8 newMode) {
 }
 
 void send() {
-  if (mode & MODE_JOYSTICK) 
+  if (mode & MODE_JOYSTICK) {
     Joy3D.send();
+  }
   else
     Mouse3D.send();
 }
@@ -521,7 +522,7 @@ void processBuffer(const uint8* buf, uint32 len) {
         int16 ry = get16(buf, 13);
         if (mode & MODE_DOMINANT_TYPE) {
           uint32 t2 = (int32)x*x+(int32)y*y+(int32)z*z;
-          uint32 r2 = (int32)rx*x+(int32)ry*ry+(int32)rz*z;
+          uint32 r2 = (int32)rx*x+(int32)ry*ry+(int32)rz*rz;
           if (t2 >= (1<<(31-15)) || r2 >= (1<<(31-15))) {
             t2 >>= 15;
             r2 >>= 15;
